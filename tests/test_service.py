@@ -16,7 +16,8 @@ from ragdocs.errors import (
     ProviderUnavailableError,
     QuestionError,
 )
-from ragdocs.service import RagAnswerService
+from ragdocs.product_prompt import SYSTEM_PROMPT
+from ragdocs.service import RagAnswerService, create_service
 
 
 class FakeRetriever:
@@ -44,12 +45,11 @@ class FakeModel:
 @pytest.fixture
 def source():
     return SourceChunk(
-        chunk_id="faiss-flat:0001",
-        text="FAISS faz busca vetorial.",
-        document_id="faiss-flat",
-        title="Flat",
-        url="https://example.com/source",
-        revision="fixed",
+        chunk_id="manual-horta:p3:0001",
+        text="As mudas de alface devem receber rega pela manhã.",
+        document_id="manual-horta",
+        file_name="manual-horta.pdf",
+        page=3,
     )
 
 
@@ -62,18 +62,77 @@ def retriever(source):
 def answer(source):
     return {
         "status": "answered",
-        "answer": "FAISS faz busca vetorial.",
+        "answer": "Regue as mudas de alface pela manhã.",
         "citation_ids": [source.chunk_id],
     }
 
 
 def test_valid_answer_resolves_sources_from_metadata(retriever, answer, source):
     model = FakeModel(answer)
-    result = RagAnswerService(Settings(), retriever, model).ask("  O que é FAISS?  ")
+    result = RagAnswerService(Settings(), retriever, model).ask("  Quando regar as mudas?  ")
     assert result.status == "answered"
     assert result.sources == [source]
-    assert result.sources[0].url == "https://example.com/source"
-    assert retriever.calls == [("O que é FAISS?", 4)]
+    assert result.sources[0].file_name == "manual-horta.pdf"
+    assert result.sources[0].page == 3
+    assert retriever.calls == [("Quando regar as mudas?", 4)]
+    assert len(model.calls) == 1
+
+
+def test_factory_uses_session_retriever_without_loading_or_generating_index(retriever):
+    service = create_service(Settings(), retriever)
+    assert isinstance(service, RagAnswerService)
+    assert service.retriever is retriever
+    assert service._model is None
+    assert retriever.calls == []
+
+
+def test_prompt_has_generic_subject_and_file_page_context(retriever, answer, source):
+    model = FakeModel(answer)
+    RagAnswerService(Settings(), retriever, model).ask("Quando regar as mudas?")
+    assert "LangChain" not in SYSTEM_PROMPT
+    assert "FAISS" not in SYSTEM_PROMPT
+    assert "qualquer assunto" in SYSTEM_PROMPT
+    data = json.loads(model.calls[0][1].content)
+    assert data["context"] == [
+        {
+            "chunk_id": source.chunk_id,
+            "file_name": "manual-horta.pdf",
+            "page": 3,
+            "text": source.text,
+        }
+    ]
+
+
+def test_sources_from_distinct_files_resolve_only_current_retrieved_chunks(
+    retriever, answer, source
+):
+    second = SourceChunk(
+        chunk_id="oficina:p2:0001",
+        text="A oficina de jardinagem ocorre às nove horas.",
+        document_id="oficina",
+        file_name="oficina.pdf",
+        page=2,
+    )
+    retriever.chunks.append(RetrievedChunk(chunk=second, score=0.8))
+    answer["citation_ids"] = [second.chunk_id, source.chunk_id]
+    result = RagAnswerService(Settings(), retriever, FakeModel(answer)).ask("q")
+    assert result.sources == [second, source]
+
+
+def test_previous_collection_reference_is_rejected(answer):
+    other = SourceChunk(
+        chunk_id="outro:p1:0001",
+        text="Este documento trata de outro assunto.",
+        document_id="outro",
+        file_name="outro.pdf",
+        page=1,
+    )
+    model = FakeModel(answer)
+    service = RagAnswerService(
+        Settings(), FakeRetriever([RetrievedChunk(chunk=other, score=1)]), model
+    )
+    with pytest.raises(InvalidResponseError):
+        service.ask("q")
     assert len(model.calls) == 1
 
 
@@ -127,21 +186,21 @@ def test_insufficient_context_model_answer(retriever):
     [
         {},
         {"status": "wrong", "answer": "x", "citation_ids": []},
-        {"status": "answered", "answer": "", "citation_ids": ["faiss-flat:0001"]},
-        {"status": "answered", "answer": "  ", "citation_ids": ["faiss-flat:0001"]},
+        {"status": "answered", "answer": "", "citation_ids": ["manual-horta:p3:0001"]},
+        {"status": "answered", "answer": "  ", "citation_ids": ["manual-horta:p3:0001"]},
         {"status": "answered", "answer": "x", "citation_ids": []},
         {"status": "answered", "answer": "x", "citation_ids": ["invented"]},
         {
             "status": "answered",
             "answer": "x",
-            "citation_ids": ["faiss-flat:0001"],
+            "citation_ids": ["manual-horta:p3:0001"],
             "url": "invented",
         },
-        {"status": "insufficient_context", "answer": "x", "citation_ids": ["faiss-flat:0001"]},
+        {"status": "insufficient_context", "answer": "x", "citation_ids": ["manual-horta:p3:0001"]},
         {
             "status": "answered",
             "answer": "Leia https://invented.com",
-            "citation_ids": ["faiss-flat:0001"],
+            "citation_ids": ["manual-horta:p3:0001"],
         },
         "not an object",
     ],

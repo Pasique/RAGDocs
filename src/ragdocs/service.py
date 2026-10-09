@@ -83,7 +83,6 @@ class RagAnswerService:
         raise AssertionError("Unreachable retry state")
 
 
-def create_service(settings: Settings) -> RagAnswerService:
-    from ragdocs.index import load_index
-
-    return RagAnswerService(settings, load_index(settings))
+def create_service(settings: Settings, retriever: Retriever) -> RagAnswerService:
+    """Use only the retriever prepared for this session's uploaded documents."""
+    return RagAnswerService(settings, retriever)
