@@ -1,8 +1,15 @@
-"""Contratos públicos v1 para ingestão, recuperação e apresentação."""
+"""Contratos v2: arquivos escolhidos pelo usuário, fontes por página e índice em memória."""
 
+from dataclasses import dataclass
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class UploadedPDF(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    name: str = Field(min_length=1)
+    data: bytes = Field(repr=False, exclude=True)
 
 
 class SourceChunk(BaseModel):
@@ -10,9 +17,24 @@ class SourceChunk(BaseModel):
     chunk_id: str
     text: str
     document_id: str
-    title: str
-    url: str
-    revision: str
+    file_name: str
+    page: int = Field(ge=1)
+
+
+class DocumentInfo(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    document_id: str
+    file_name: str
+    page_count: int = Field(ge=1)
+    text_pages: int = Field(ge=1)
+
+
+class ExtractedCollection(BaseModel):
+    fingerprint: str
+    documents: list[DocumentInfo]
+    chunks: list[SourceChunk]
+    skipped_pages: int = 0
+    duplicate_count: int = 0
 
 
 class RetrievedChunk(BaseModel):
@@ -27,7 +49,7 @@ class AnswerResult(BaseModel):
 
 
 class ModelAnswer(BaseModel):
-    """Resposta estruturada do modelo; URLs sempre vêm do corpus."""
+    """Resposta estruturada; arquivo, página e texto sempre vêm dos PDFs."""
 
     model_config = ConfigDict(extra="forbid")
     status: Literal["answered", "insufficient_context"]
@@ -41,3 +63,9 @@ class Retriever(Protocol):
 
 class AnswerService(Protocol):
     def ask(self, question: str) -> AnswerResult: ...
+
+
+@dataclass(frozen=True)
+class PreparedCollection:
+    collection: ExtractedCollection
+    retriever: Retriever

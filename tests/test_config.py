@@ -25,4 +25,5 @@ def test_loads_only_project_dotenv(tmp_path, monkeypatch):
     loaded = load_settings(project)
     assert loaded.require_api_key() == "correct"
     assert loaded.chat_model == "custom/model"
-    assert loaded.index_dir == project / "runtime" / "index"
+    assert loaded.evaluation_dir == project / "runtime" / "evaluation"
+    assert loaded.max_pdf_files == 5

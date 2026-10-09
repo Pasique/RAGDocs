@@ -27,14 +27,12 @@ class Settings(BaseModel):
     max_retries: int = 1
     max_history: int = 20
     base_url: str = "https://openrouter.ai/api/v1"
-
-    @property
-    def corpus_dir(self) -> Path:
-        return self.project_root / "corpus"
-
-    @property
-    def index_dir(self) -> Path:
-        return self.project_root / "runtime" / "index"
+    max_pdf_files: int = 5
+    max_pdf_bytes: int = 10 * 1024 * 1024
+    max_collection_bytes: int = 20 * 1024 * 1024
+    max_collection_pages: int = 100
+    max_extracted_chars: int = 200_000
+    max_page_stream_bytes: int = 10 * 1024 * 1024
 
     @property
     def evaluation_dir(self) -> Path:
