@@ -10,7 +10,7 @@ from ragdocs.errors import DocumentError
 from ragdocs.ingestion import extract_collection, selection_fingerprint
 
 
-def make_pdf(texts, password=None):
+def make_pdf(texts, password=None, *, owner_password=None, algorithm=None):
     """PDFs sintéticos determinísticos criados em memória, sem dependências auxiliares."""
     writer = PdfWriter()
     for text in texts:
@@ -32,7 +32,7 @@ def make_pdf(texts, password=None):
         stream.set_data(f"BT /F1 12 Tf 72 720 Td ({escaped}) Tj ET".encode("latin-1"))
         page[NameObject("/Contents")] = writer._add_object(stream)
     if password is not None:
-        writer.encrypt(password)
+        writer.encrypt(password, owner_password=owner_password, algorithm=algorithm)
     result = BytesIO()
     writer.write(result)
     return result.getvalue()
@@ -104,15 +104,50 @@ def test_no_text_pdf_rejects_entire_batch(texts):
         )
 
 
-def test_encrypted_pdf_rejected_even_if_password_empty():
-    for password in ["secret", ""]:
-        with pytest.raises(DocumentError, match="senha"):
-            extract_collection(
-                Settings(),
-                [
-                    UploadedPDF(name="segredo.pdf", data=make_pdf(["Segredo"], password)),
-                ],
-            )
+@pytest.mark.parametrize("algorithm", ["RC4-128", "AES-128", "AES-256"])
+def test_pdf_requiring_opening_password_is_rejected(algorithm):
+    with pytest.raises(DocumentError) as error:
+        extract_collection(
+            Settings(),
+            [
+                UploadedPDF(
+                    name="segredo.pdf", data=make_pdf(["Segredo"], "secret", algorithm=algorithm)
+                )
+            ],
+        )
+    assert error.value.code == "password_required"
+
+
+@pytest.mark.parametrize("algorithm", ["RC4-128", "AES-128", "AES-256"])
+def test_encrypted_pdf_opening_without_password_is_supported(algorithm, tmp_path):
+    data = make_pdf(
+        ["Primeira pagina do manual.", None, "Terceira pagina do manual."],
+        "",
+        owner_password="owner-only-secret",
+        algorithm=algorithm,
+    )
+    collection = extract_collection(
+        Settings(project_root=tmp_path), [UploadedPDF(name="manual.pdf", data=data)]
+    )
+    assert collection.documents[0].page_count == 3
+    assert collection.documents[0].text_pages == 2
+    assert collection.skipped_pages == 1
+    assert [chunk.page for chunk in collection.chunks] == [1, 3]
+    assert collection.chunks[1].text == "Terceira pagina do manual."
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_missing_crypto_dependency_has_specific_safe_reason(monkeypatch):
+    from pypdf.errors import DependencyError
+
+    def broken_reader(*args, **kwargs):
+        raise DependencyError("raw-sensitive-parser-detail")
+
+    monkeypatch.setattr("ragdocs.ingestion.PdfReader", broken_reader)
+    with pytest.raises(DocumentError) as error:
+        extract_collection(Settings(), [upload()])
+    assert error.value.code == "dependency"
+    assert "raw-sensitive" not in str(error.value)
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ragdocs"
-version = "1.1.0"
+version = "1.1.1"
 description = "Consulte seus PDFs com LangChain, FAISS e OpenRouter"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -18,7 +18,7 @@ dependencies = [
   "httpx>=0.28,<0.29",
   "pydantic>=2.10,<3",
   "python-dotenv>=1,<2",
-  "pypdf>=6.20,<7",
+  "pypdf[crypto]>=6.20,<7",
 ]
 
 [project.optional-dependencies]

@@ -16,7 +16,9 @@ class CorpusError(RagDocsError):
 class DocumentError(RagDocsError):
     """PDF inválido ou coleção fora dos limites, antes das chamadas de embeddings."""
 
-    pass
+    def __init__(self, message: str, *, code: str = "invalid_pdf"):
+        super().__init__(message)
+        self.code = code
 
 
 class IndexMissingError(RagDocsError):

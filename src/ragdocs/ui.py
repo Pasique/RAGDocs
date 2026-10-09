@@ -57,12 +57,37 @@ def _signature(settings: Settings, uploads: list[UploadedPDF]) -> str:
 
 def _safe_error(error: Exception) -> str:
     """Mensagens controladas: nunca apresenta erro bruto do provedor ou conteúdo do PDF."""
+    if isinstance(error, DocumentError):
+        document_messages = {
+            "empty_selection": "Selecione pelo menos um PDF para processar.",
+            "file_count": "A seleção excede a quantidade máxima de PDFs. Remova alguns arquivos.",
+            "empty_file": "Um dos arquivos está vazio. Remova-o e tente novamente.",
+            "file_size": "Um PDF excede o limite de tamanho por arquivo indicado acima.",
+            "collection_size": "Os PDFs excedem o limite de tamanho total indicado acima.",
+            "page_limit": "A coleção excede o limite de páginas indicado acima. Use menos páginas.",
+            "character_limit": "A coleção excede o limite de caracteres extraídos indicado acima.",
+            "page_stream": "Uma página é complexa demais para o limite de processamento do MVP.",
+            "split_settings": "A configuração de divisão dos documentos precisa ser corrigida.",
+            "password_required": (
+                "Um dos PDFs exige senha para abrir. O MVP não aceita senhas; "
+                "envie uma cópia que abra sem pedir senha."
+            ),
+            "no_text": (
+                "Um dos PDFs não tem texto extraível. Documentos digitalizados como imagens "
+                "precisam de OCR, que não está disponível neste MVP."
+            ),
+            "dependency": (
+                "Falta o suporte de criptografia para ler esse PDF. "
+                "Atualize o ambiente seguindo a instalação do README."
+            ),
+        }
+        return document_messages.get(
+            error.code,
+            "Não foi possível ler um dos PDFs. Use arquivos válidos, sem senha de abertura "
+            "e com texto extraível. Remova o arquivo inválido e tente novamente.",
+        )
     messages = {
         ConfigurationError: "Configure OPENROUTER_API_KEY no .env deste projeto.",
-        DocumentError: (
-            "Não foi possível processar os PDFs. Use arquivos válidos, sem senha e com texto "
-            "extraível, dentro dos limites indicados. Remova o arquivo inválido e tente novamente."
-        ),
         AuthenticationError: "O OpenRouter recusou a autenticação. Confira sua chave.",
         CreditError: "Crédito indisponível no OpenRouter. Verifique o limite da chave dedicada.",
         ProviderTimeoutError: "O OpenRouter demorou para responder. Tente novamente mais tarde.",
@@ -130,7 +155,7 @@ def main(
         f"{settings.max_collection_bytes // (1024 * 1024)} MiB no conjunto; "
         f"{settings.max_collection_pages} páginas e "
         f"{settings.max_extracted_chars:,} caracteres extraídos. "
-        "PDFs com texto extraível, sem senha. OCR não está disponível."
+        "PDFs com texto extraível que abram sem pedir senha. OCR não está disponível."
     )
 
     generation = st.session_state.setdefault("_ragdocs_upload_generation", 0)
@@ -216,5 +241,5 @@ def main(
         st.error(_safe_error(error))
         return
     history.append({"question": question, "result": result})
-    del history[:-settings.max_history]
+    del history[: -settings.max_history]
     st.rerun()

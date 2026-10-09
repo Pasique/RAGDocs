@@ -72,7 +72,8 @@ perguntas reutilizam o índice da sessão sem repetir embeddings dos documentos.
 - Até cinco PDFs, 10 MiB por arquivo e 20 MiB no conjunto.
 - Até 100 páginas e 200 mil caracteres extraídos no conjunto.
 - PDFs precisam ter texto extraível; não há OCR para páginas digitalizadas.
-- Arquivos inválidos, protegidos por senha ou inteiramente sem texto são rejeitados.
+- Arquivos inválidos, que exigem senha para abrir ou inteiramente sem texto são rejeitados.
+- PDFs criptografados que abrem sem pedir senha são aceitos, incluindo AES.
 - Páginas sem texto são ignoradas, com a quantidade informada na interface.
 - PDFs de conteúdo idêntico são deduplicados; arquivos diferentes com o mesmo nome
   mantêm identidades distintas.
@@ -187,6 +188,15 @@ Os **141 testes offline** passaram, incluindo interface e processamento integrad
 com PDFs sintéticos. Ruff e instalação limpa com as dependências fixadas passaram. Planejamento,
 handoffs, checkpoints e justificativas detalhadas permanecem locais e ignorados.
 
+## Correção da versão 1.1.1
+
+A leitura distingue criptografia de exigência de senha para abrir: um PDF que abre
+sem senha é processado normalmente. O extra `pypdf[crypto]` fornece o suporte AES,
+conforme a [documentação do pypdf](https://pypdf.readthedocs.io/en/stable/user/encryption-decryption.html).
+A interface apresenta a causa específica para senha de abertura, ausência de texto,
+limites excedidos e dependências ausentes, sem exibir dados brutos do documento.
+A suíte atual tem 155 testes offline, incluindo RC4 e AES com e sem senha de abertura.
+
 ## Limitações
 
 A [extração com pypdf](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)
@@ -206,4 +216,5 @@ ferramentas ficam fora do Git. A documentação local está em `documentacao_pro
 Projeto de Pasique, desenvolvido com assistência do Codex em frentes paralelas de
 processamento, respostas e interface, com integração e revisão pelo coordenador.
 Código e fixtures próprios sob [licença MIT](LICENSE).
-A versão `v1.0.0` permanece no histórico; `v1.1.0` corrige o fluxo para PDFs enviados.
+As versões anteriores permanecem no histórico. `v1.1.0` introduz PDFs enviados;
+`v1.1.1` permite PDFs criptografados que abrem sem senha e detalha erros de processamento.

@@ -425,3 +425,30 @@ def test_clear_documents_recreates_native_uploader(settings):
     assert at.get("file_uploader")[0].proto.id != original_id
     assert at.session_state["_ragdocs_upload_generation"] == 1
     assert at.session_state["_ragdocs_uploads"] == []
+
+
+@pytest.mark.parametrize(
+    "code,expected",
+    [
+        ("password_required", "exige senha para abrir"),
+        ("no_text", "não tem texto extraível"),
+        ("file_size", "tamanho por arquivo"),
+        ("collection_size", "tamanho total"),
+        ("page_limit", "limite de páginas"),
+        ("character_limit", "limite de caracteres"),
+        ("dependency", "suporte de criptografia"),
+        ("unknown-parser-reason", "Não foi possível ler"),
+    ],
+)
+def test_document_failure_explains_reason_without_raw_details(settings, code, expected):
+    at, _, _, _ = app(
+        settings,
+        processor=FakeProcessor(
+            error=DocumentError("raw-secret-document-content", code=code),
+        ),
+    )
+    process(at)
+    assert expected in at.error[0].value
+    assert "raw-secret" not in at.error[0].value
+    assert at.chat_input[0].disabled
+    assert "_ragdocs_prepared" not in at.session_state

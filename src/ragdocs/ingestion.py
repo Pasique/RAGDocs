@@ -6,6 +6,7 @@ from io import BytesIO
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
+from pypdf.errors import DependencyError
 from pypdf.generic import ArrayObject
 
 from ragdocs.config import Settings
@@ -42,17 +43,26 @@ def selection_fingerprint(settings: Settings, uploads: list[UploadedPDF]) -> str
 
 def _validate_selection(settings: Settings, uploads: list[UploadedPDF]) -> None:
     if not uploads:
-        raise DocumentError("Selecione pelo menos um PDF para processar.")
+        raise DocumentError("Selecione pelo menos um PDF para processar.", code="empty_selection")
     if len(uploads) > settings.max_pdf_files:
-        raise DocumentError(f"Selecione no máximo {settings.max_pdf_files} PDFs.")
+        raise DocumentError(
+            f"Selecione no máximo {settings.max_pdf_files} PDFs.", code="file_count"
+        )
     if any(not upload.data for upload in uploads):
-        raise DocumentError("O lote contém um arquivo vazio. Remova-o e tente novamente.")
+        raise DocumentError(
+            "O lote contém um arquivo vazio. Remova-o e tente novamente.", code="empty_file"
+        )
     if any(len(upload.data) > settings.max_pdf_bytes for upload in uploads):
-        raise DocumentError("Um PDF excede o limite de tamanho por arquivo.")
+        raise DocumentError("Um PDF excede o limite de tamanho por arquivo.", code="file_size")
     if sum(len(upload.data) for upload in uploads) > settings.max_collection_bytes:
-        raise DocumentError("Os PDFs excedem o limite de tamanho total da coleção.")
+        raise DocumentError(
+            "Os PDFs excedem o limite de tamanho total da coleção.", code="collection_size"
+        )
     if settings.chunk_size <= 0 or not 0 <= settings.chunk_overlap < settings.chunk_size:
-        raise DocumentError("Parâmetros de divisão inválidos: confira tamanho e sobreposição.")
+        raise DocumentError(
+            "Parâmetros de divisão inválidos: confira tamanho e sobreposição.",
+            code="split_settings",
+        )
 
 
 def _check_page_stream(page, limit: int) -> None:
@@ -66,7 +76,9 @@ def _check_page_stream(page, limit: int) -> None:
     for stream in streams:
         total += len(stream.get_object().get_data())
         if total > limit:
-            raise DocumentError("Uma página excede o limite de processamento do PDF.")
+            raise DocumentError(
+                "Uma página excede o limite de processamento do PDF.", code="page_stream"
+            )
 
 
 def extract_collection(settings: Settings, uploads: list[UploadedPDF]) -> ExtractedCollection:
@@ -89,12 +101,18 @@ def extract_collection(settings: Settings, uploads: list[UploadedPDF]) -> Extrac
         seen.add(document_id)
         try:
             reader = PdfReader(BytesIO(upload.data), strict=True)
-            if reader.is_encrypted:
-                raise DocumentError("O lote contém um PDF protegido por senha. Remova a proteção.")
+            # Muitos PDFs têm criptografia de permissões, mas abrem sem senha.
+            # Tentar somente a senha vazia não oferece suporte a senhas fornecidas.
+            if reader.is_encrypted and not reader.decrypt(""):
+                raise DocumentError(
+                    "O lote contém um PDF que exige senha para abrir.", code="password_required"
+                )
             page_count = len(reader.pages)
             total_pages += page_count
             if total_pages > settings.max_collection_pages:
-                raise DocumentError("A coleção excede o limite total de páginas.")
+                raise DocumentError(
+                    "A coleção excede o limite total de páginas.", code="page_limit"
+                )
             text_pages = 0
             for page_number, page in enumerate(reader.pages, start=1):
                 _check_page_stream(page, settings.max_page_stream_bytes)
@@ -104,7 +122,10 @@ def extract_collection(settings: Settings, uploads: list[UploadedPDF]) -> Extrac
                     continue
                 total_chars += len(text)
                 if total_chars > settings.max_extracted_chars:
-                    raise DocumentError("A coleção excede o limite total de caracteres extraídos.")
+                    raise DocumentError(
+                        "A coleção excede o limite total de caracteres extraídos.",
+                        code="character_limit",
+                    )
                 text_pages += 1
                 for position, part in enumerate(splitter.split_text(text)):
                     digest = hashlib.sha256(part.encode("utf-8")).hexdigest()[:12]
@@ -119,7 +140,8 @@ def extract_collection(settings: Settings, uploads: list[UploadedPDF]) -> Extrac
                     )
             if not text_pages:
                 raise DocumentError(
-                    "O lote contém um PDF sem texto extraível. PDFs escaneados exigem OCR."
+                    "O lote contém um PDF sem texto extraível. PDFs escaneados exigem OCR.",
+                    code="no_text",
                 )
             documents.append(
                 DocumentInfo(
@@ -131,11 +153,16 @@ def extract_collection(settings: Settings, uploads: list[UploadedPDF]) -> Extrac
             )
         except DocumentError:
             raise
+        except DependencyError:
+            raise DocumentError(
+                "A instalação não tem o suporte de criptografia necessário para ler esse PDF.",
+                code="dependency",
+            ) from None
         except Exception:
             # Erros do parser podem conter dados recebidos; nunca expô-los na interface.
             raise DocumentError("O lote contém um PDF inválido ou que não pôde ser lido.") from None
     if not chunks:
-        raise DocumentError("Os PDFs não produziram trechos para consulta.")
+        raise DocumentError("Os PDFs não produziram trechos para consulta.", code="no_text")
     return ExtractedCollection(
         fingerprint=selection_fingerprint(settings, uploads),
         documents=documents,
