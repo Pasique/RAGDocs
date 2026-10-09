@@ -175,9 +175,22 @@ Aceite: recuperação e respostas corretas e sustentadas em pelo menos 8/10 caso
 recusas em 5/5 e referências válidas em todos. O relatório só marca `accepted` depois
 da revisão registrada. Não se contrata outro modelo como avaliador.
 
+## Validação da versão 1.1.0
+
+A avaliação real com os dois PDFs fictícios recuperou as fontes esperadas em **10/10**
+casos e produziu **10/10 respostas corretas e sustentadas**, além de **5/5 recusas** e
+referências válidas em todas as respostas. A revisão de rubricas e trechos foi feita
+pelo coordenador com assistência do Codex; não constitui avaliação humana independente.
+O consumo acumulado da chave foi **US$ 0,01956824**, incluindo US$ 0,0120927 anteriores.
+
+Os **141 testes offline** passaram, incluindo interface e processamento integrado
+com PDFs sintéticos. Ruff e instalação limpa com as dependências fixadas passaram. Planejamento,
+handoffs, checkpoints e justificativas detalhadas permanecem locais e ignorados.
+
 ## Limitações
 
-A extração não reconhece texto presente somente em imagens. Layouts complexos e
+A [extração com pypdf](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)
+não reconhece texto presente somente em imagens. Layouts complexos e
 tabelas podem perder estrutura. Um trecho semelhante pode não responder à pergunta,
 e referências válidas não garantem correção semântica. Latência, disponibilidade e
 cobrança dependem do OpenRouter. O MVP é local, sem autenticação ou hospedagem pública.

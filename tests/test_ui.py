@@ -63,17 +63,30 @@ class FakeProcessor:
         chunks = []
         for upload in uploads:
             identity = hashlib.sha256(upload.data).hexdigest()
-            documents.append(DocumentInfo(
-                document_id=identity, file_name=upload.name, page_count=2, text_pages=1,
-            ))
-            chunks.append(SourceChunk(
-                chunk_id=f"{identity}-2-0", text="A biblioteca abre às nove horas.",
-                document_id=identity, file_name=upload.name, page=2,
-            ))
+            documents.append(
+                DocumentInfo(
+                    document_id=identity,
+                    file_name=upload.name,
+                    page_count=2,
+                    text_pages=1,
+                )
+            )
+            chunks.append(
+                SourceChunk(
+                    chunk_id=f"{identity}-2-0",
+                    text="A biblioteca abre às nove horas.",
+                    document_id=identity,
+                    file_name=upload.name,
+                    page=2,
+                )
+            )
         return PreparedCollection(
             collection=ExtractedCollection(
-                fingerprint="synthetic-test-collection", documents=documents, chunks=chunks,
-                skipped_pages=self.skipped_pages, duplicate_count=self.duplicate_count,
+                fingerprint="synthetic-test-collection",
+                documents=documents,
+                chunks=chunks,
+                skipped_pages=self.skipped_pages,
+                duplicate_count=self.duplicate_count,
             ),
             retriever=FakeRetriever(),
         )
@@ -95,30 +108,29 @@ def pdf(name="biblioteca.pdf", content=b"synthetic-pdf-one"):
 
 def answer():
     return AnswerResult(
-        status="answered", answer="A biblioteca abre às nove horas. [library-2]",
-        sources=[SourceChunk(
-            chunk_id="library-2", text="A biblioteca abre às nove horas.",
-            document_id="library", file_name="biblioteca.pdf", page=2,
-        )],
+        status="answered",
+        answer="A biblioteca abre às nove horas. [library-2]",
+        sources=[
+            SourceChunk(
+                chunk_id="library-2",
+                text="A biblioteca abre às nove horas.",
+                document_id="library",
+                file_name="biblioteca.pdf",
+                page=2,
+            )
+        ],
     )
 
 
 def _app(settings, service, processor, uploads):
-    import hashlib
-    from unittest.mock import patch
-
     from ragdocs.ui import main
 
-    # Pure identity stub while the ingestion front is integrated independently.
-    def fingerprint(config, files):
-        entries = sorted((file.name, hashlib.sha256(file.data).hexdigest()) for file in files)
-        return hashlib.sha256(repr(entries).encode()).hexdigest()
-
-    with patch("ragdocs.ui._selection_fingerprint", fingerprint):
-        main(
-            service_factory=service.factory, settings=settings,
-            processor=processor, upload_provider=uploads,
-        )
+    main(
+        service_factory=service.factory,
+        settings=settings,
+        processor=processor,
+        upload_provider=uploads,
+    )
 
 
 @pytest.fixture
@@ -187,11 +199,14 @@ def test_empty_pages_and_duplicates_are_disclosed(settings):
     assert any("1 arquivo(s) idêntico(s)" in caption.value for caption in at.caption)
 
 
-@pytest.mark.parametrize("replacement", [
-    [pdf("biblioteca.pdf", b"new-content-same-name")],
-    [pdf("renamed.pdf")],
-    [],
-])
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        [pdf("biblioteca.pdf", b"new-content-same-name")],
+        [pdf("renamed.pdf")],
+        [],
+    ],
+)
 def test_selection_change_immediately_invalidates_everything(settings, replacement):
     at, service, processor, uploads = app(settings)
     process(at)
@@ -330,14 +345,17 @@ def test_insufficient_context_is_not_technical_error(settings):
     assert not at.expander
 
 
-@pytest.mark.parametrize("error,expected", [
-    (AuthenticationError, "autenticação"),
-    (CreditError, "Crédito"),
-    (ProviderTimeoutError, "demorou"),
-    (ProviderUnavailableError, "indisponível"),
-    (InvalidResponseError, "validada"),
-    (RuntimeError, "Não foi possível"),
-])
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (AuthenticationError, "autenticação"),
+        (CreditError, "Crédito"),
+        (ProviderTimeoutError, "demorou"),
+        (ProviderUnavailableError, "indisponível"),
+        (InvalidResponseError, "validada"),
+        (RuntimeError, "Não foi possível"),
+    ],
+)
 def test_consultation_errors_are_safe_and_do_not_enter_history(settings, error, expected):
     service = FakeService(error=error("test-secret-do-not-display sensitive response"))
     at, _, _, _ = app(settings, service=service)
