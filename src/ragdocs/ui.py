@@ -139,7 +139,7 @@ def main(service_factory: ServiceFactory | None = None, settings: Settings | Non
 
     history = st.session_state.setdefault("ragdocs_history", [])
     key_ready = bool(settings.api_key.get_secret_value().strip())
-    index_ready = settings.index_dir.exists() and any(
+    index_ready = settings.index_dir.is_dir() and any(
         path.is_file() for path in settings.index_dir.iterdir()
     )
     with st.sidebar:
