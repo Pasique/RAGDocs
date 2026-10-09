@@ -8,6 +8,7 @@
 .agents/
 .vscode/
 .idea/
+.streamlit/secrets.toml
 # Referência acadêmica local
 /transcri_o_da_unidade_ii_idea_o_arquitetura_m_nima_e_git_github.md
 # Ambientes, ferramentas instaladas, caches e artefatos
