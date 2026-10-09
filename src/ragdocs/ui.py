@@ -1,46 +1,67 @@
-"""Interface local: perguntas independentes e histórico somente visual."""
+"""PDFs e índice isolados na sessão; perguntas independentes e fontes por página."""
 
 import hashlib
 import json
 from collections.abc import Callable
-from urllib.parse import urlparse
 
 import streamlit as st
 
 from ragdocs.config import Settings, load_settings
-from ragdocs.contracts import AnswerResult, AnswerService
+from ragdocs.contracts import (
+    AnswerResult,
+    AnswerService,
+    PreparedCollection,
+    Retriever,
+    UploadedPDF,
+)
 from ragdocs.errors import (
     AuthenticationError,
     ConfigurationError,
-    CorpusError,
     CreditError,
-    IndexIncompatibleError,
-    IndexMissingError,
+    DocumentError,
     InvalidResponseError,
     ProviderTimeoutError,
     ProviderUnavailableError,
     QuestionError,
 )
 
-ServiceFactory = Callable[[Settings], AnswerService]
+ServiceFactory = Callable[[Settings, Retriever], AnswerService]
+Processor = Callable[[Settings, list[UploadedPDF]], PreparedCollection]
+UploadProvider = Callable[[str], list[UploadedPDF]]
 
 
-def _create_service(settings: Settings) -> AnswerService:
-    # A interface pode ser testada antes de integrar índice e provedor.
+def _create_service(settings: Settings, retriever: Retriever) -> AnswerService:
     from ragdocs.service import create_service
 
-    return create_service(settings)
+    return create_service(settings, retriever)
+
+
+def _process_pdfs(settings: Settings, uploads: list[UploadedPDF]) -> PreparedCollection:
+    from ragdocs.index import process_pdfs
+
+    return process_pdfs(settings, uploads)
+
+
+def _selection_fingerprint(settings: Settings, uploads: list[UploadedPDF]) -> str:
+    from ragdocs.ingestion import selection_fingerprint
+
+    return selection_fingerprint(settings, uploads)
+
+
+def _signature(settings: Settings, uploads: list[UploadedPDF]) -> str:
+    config = json.dumps(settings.model_dump(mode="json", exclude={"api_key"}), sort_keys=True)
+    key_hash = hashlib.sha256(settings.api_key.get_secret_value().encode()).hexdigest()
+    content = _selection_fingerprint(settings, uploads)
+    return hashlib.sha256(f"{config}:{key_hash}:{content}".encode()).hexdigest()
 
 
 def _safe_error(error: Exception) -> str:
-    """Nunca apresenta mensagens brutas nem credenciais do provedor."""
+    """Mensagens controladas: nunca apresenta erro bruto do provedor ou conteúdo do PDF."""
     messages = {
         ConfigurationError: "Configure OPENROUTER_API_KEY no .env deste projeto.",
-        CorpusError: "A coleção documental está inválida. Confira o manifesto e os arquivos.",
-        IndexMissingError: "Índice ausente. Execute python -m ragdocs.cli build-index.",
-        IndexIncompatibleError: (
-            "O índice não corresponde à configuração ou à coleção atual. "
-            "Execute python -m ragdocs.cli build-index."
+        DocumentError: (
+            "Não foi possível processar os PDFs. Use arquivos válidos, sem senha e com texto "
+            "extraível, dentro dos limites indicados. Remova o arquivo inválido e tente novamente."
         ),
         AuthenticationError: "O OpenRouter recusou a autenticação. Confira sua chave.",
         CreditError: "Crédito indisponível no OpenRouter. Verifique o limite da chave dedicada.",
@@ -49,66 +70,18 @@ def _safe_error(error: Exception) -> str:
         InvalidResponseError: (
             "A resposta recebida não pôde ser validada. Nenhuma resposta foi aceita."
         ),
-        QuestionError: "Digite uma pergunta entre 1 e 1.000 caracteres.",
+        QuestionError: "Digite uma pergunta dentro do limite indicado.",
     }
     for error_type, message in messages.items():
         if isinstance(error, error_type):
             return message
-    return "Não foi possível concluir a consulta. Confira a configuração e tente novamente."
+    return "Não foi possível concluir a operação. Confira a configuração e tente novamente."
 
 
-def _signature(settings: Settings) -> tuple:
-    """Invalida o recurso por configuração, corpus ou alteração dos arquivos do índice."""
-    paths = [settings.corpus_dir / "manifest.json"]
-    if settings.corpus_dir.exists():
-        paths.extend(path for path in settings.corpus_dir.rglob("*") if path.is_file())
-    if settings.index_dir.exists():
-        paths.extend(path for path in settings.index_dir.rglob("*") if path.is_file())
-    files = []
-    for path in sorted(paths):
-        try:
-            stat = path.stat()
-            files.append((str(path), stat.st_mtime_ns, stat.st_size))
-        except FileNotFoundError:
-            files.append((str(path), None, None))
-    config = settings.model_dump(mode="json", exclude={"api_key"})
-    key_fingerprint = hashlib.sha256(settings.api_key.get_secret_value().encode()).hexdigest()
-    return json.dumps(config, sort_keys=True), key_fingerprint, tuple(files)
-
-
-def _get_service(settings: Settings, factory: ServiceFactory) -> AnswerService:
-    signature = _signature(settings)
-    cached = st.session_state.get("_ragdocs_service")
-    if cached is None or cached[0] != signature:
-        service = factory(settings)
-        st.session_state["_ragdocs_service"] = (signature, service)
-        return service
-    return cached[1]
-
-
-def _is_web_url(url: str) -> bool:
-    parsed = urlparse(url)
-    return parsed.scheme in {"https", "http"} and bool(parsed.netloc)
-
-
-def _collection(settings: Settings) -> None:
-    st.subheader("Coleção documental")
-    try:
-        manifest = json.loads((settings.corpus_dir / "manifest.json").read_text(encoding="utf-8"))
-        sources = manifest["sources"]
-        if not isinstance(sources, list):
-            raise ValueError("Manifesto inválido")
-        for source in sources:
-            title, url = source["title"], source["url"]
-            if not isinstance(title, str) or not isinstance(url, str):
-                raise ValueError("Fonte inválida")
-            if _is_web_url(url):
-                st.link_button(title, url, use_container_width=True)
-            else:
-                st.text(title)
-        st.caption(f"{len(sources)} fontes fixas. As consultas não navegam na internet.")
-    except (OSError, ValueError, KeyError, TypeError):
-        st.caption("Coleção indisponível. Confira corpus/manifest.json.")
+def _invalidate_collection() -> None:
+    for key in ("_ragdocs_prepared", "_ragdocs_service"):
+        st.session_state.pop(key, None)
+    st.session_state["ragdocs_history"] = []
 
 
 def _render_result(result: AnswerResult) -> None:
@@ -117,44 +90,107 @@ def _render_result(result: AnswerResult) -> None:
         return
     st.markdown(result.answer)
     for number, source in enumerate(result.sources, start=1):
-        with st.expander(f"Fonte {number} · {source.title} · {source.chunk_id}"):
-            if _is_web_url(source.url):
-                st.link_button("Abrir documento original", source.url)
-            st.caption(f"Revisão: {source.revision}")
+        with st.expander(f"Fonte {number} · {source.file_name} — página {source.page}"):
+            st.caption(f"Trecho: {source.chunk_id}")
             st.code(source.text, language=None, wrap_lines=True)
 
 
-def main(service_factory: ServiceFactory | None = None, settings: Settings | None = None) -> None:
-    """Desenha a aplicação; a factory injetável recebe a configuração imutável."""
+def _uploaded_files(key: str, settings: Settings) -> list[UploadedPDF]:
+    files = st.file_uploader(
+        "Selecione seus PDFs",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key=key,
+        max_upload_size=settings.max_pdf_bytes // (1024 * 1024),
+    )
+    return [UploadedPDF(name=file.name, data=file.getvalue()) for file in files]
+
+
+def main(
+    service_factory: ServiceFactory | None = None,
+    settings: Settings | None = None,
+    processor: Processor | None = None,
+    upload_provider: UploadProvider | None = None,
+) -> None:
+    """Injeções permitem verificar a sessão sem upload nativo nem chamadas pagas."""
     st.set_page_config(page_title="RAGDocs", page_icon="📚", layout="centered")
     settings = settings or load_settings()
     factory = service_factory or _create_service
+    process = processor or _process_pdfs
     st.title("📚 RAGDocs")
-    st.write(
-        "Tire dúvidas sobre LangChain e FAISS com respostas em português e fontes verificáveis."
-    )
+    st.write("Envie PDFs e consulte seu conteúdo com respostas em português e fontes verificáveis.")
     st.caption(
-        "Cada pergunta é independente. O histórico abaixo serve apenas para consulta visual."
+        "Trechos dos PDFs serão enviados ao OpenRouter para embeddings e respostas. "
+        "Os documentos e o índice ficam somente na memória desta sessão."
+    )
+    st.caption("Cada pergunta é independente. O histórico serve apenas para consulta visual.")
+    st.caption(
+        f"Até {settings.max_pdf_files} PDFs, "
+        f"{settings.max_pdf_bytes // (1024 * 1024)} MiB por arquivo e "
+        f"{settings.max_collection_bytes // (1024 * 1024)} MiB no conjunto; "
+        f"{settings.max_collection_pages} páginas e "
+        f"{settings.max_extracted_chars:,} caracteres extraídos. "
+        "PDFs com texto extraível, sem senha. OCR não está disponível."
     )
 
+    generation = st.session_state.setdefault("_ragdocs_upload_generation", 0)
+    uploader_key = f"ragdocs_uploads_{generation}"
+    uploads = (
+        upload_provider(uploader_key)
+        if upload_provider is not None
+        else _uploaded_files(uploader_key, settings)
+    )
+    signature = _signature(settings, uploads)
+    if st.session_state.get("_ragdocs_selection") != signature:
+        _invalidate_collection()
+        st.session_state["_ragdocs_selection"] = signature
+    st.session_state["_ragdocs_uploads"] = uploads
     history = st.session_state.setdefault("ragdocs_history", [])
     key_ready = bool(settings.api_key.get_secret_value().strip())
-    index_ready = settings.index_dir.is_dir() and any(
-        path.is_file() for path in settings.index_dir.iterdir()
-    )
+
     with st.sidebar:
         st.header("Sua sessão")
         st.caption("Chave OpenRouter configurada" if key_ready else "Chave OpenRouter ausente")
-        st.caption("Índice local encontrado" if index_ready else "Índice local ausente")
+        if st.button("Limpar documentos", use_container_width=True):
+            _invalidate_collection()
+            st.session_state.pop("_ragdocs_selection", None)
+            st.session_state.pop(uploader_key, None)
+            st.session_state["_ragdocs_uploads"] = []
+            st.session_state["_ragdocs_upload_generation"] = generation + 1
+            st.rerun()
         if st.button("Limpar histórico", use_container_width=True):
             history.clear()
         st.caption(f"{len(history)} de {settings.max_history} interações recentes")
-        _collection(settings)
 
     if not key_ready:
-        st.warning("Configure OPENROUTER_API_KEY no .env deste projeto para consultar.")
-    if not index_ready:
-        st.warning("Prepare o índice no terminal: python -m ragdocs.cli build-index")
+        st.warning("Configure OPENROUTER_API_KEY no .env deste projeto para processar e consultar.")
+    if st.button("Processar documentos", disabled=not (uploads and key_ready)):
+        _invalidate_collection()
+        history = st.session_state["ragdocs_history"]
+        try:
+            with st.spinner("Processando documentos…"):
+                prepared = process(settings, uploads)
+                service = factory(settings, prepared.retriever)
+            st.session_state["_ragdocs_prepared"] = prepared
+            st.session_state["_ragdocs_service"] = service
+        except Exception as error:
+            st.error(_safe_error(error))
+
+    prepared = st.session_state.get("_ragdocs_prepared")
+    if prepared is None:
+        st.info("Selecione os PDFs e clique em Processar documentos para começar.")
+    else:
+        collection = prepared.collection
+        st.success(f"{len(collection.documents)} documento(s) pronto(s) para consulta.")
+        with st.sidebar:
+            st.subheader("Documentos processados")
+            for document in collection.documents:
+                st.text(document.file_name)
+                st.caption(f"{document.text_pages} de {document.page_count} páginas com texto")
+        if collection.skipped_pages:
+            st.warning(f"{collection.skipped_pages} página(s) sem texto ficaram fora da consulta.")
+        if collection.duplicate_count:
+            st.caption(f"{collection.duplicate_count} arquivo(s) idêntico(s) ignorado(s).")
 
     for item in history:
         with st.chat_message("user"):
@@ -163,19 +199,19 @@ def main(service_factory: ServiceFactory | None = None, settings: Settings | Non
             _render_result(item["result"])
 
     question = st.chat_input(
-        "Pergunte sobre LangChain ou FAISS",
+        "Pergunte sobre seus documentos",
         max_chars=settings.max_question_chars,
-        disabled=not (key_ready and index_ready),
+        disabled=not (key_ready and prepared is not None),
     )
-    if question is None:
+    if question is None or not key_ready or prepared is None:
         return
     question = question.strip()
     if not question or len(question) > settings.max_question_chars:
         st.error(f"Digite uma pergunta entre 1 e {settings.max_question_chars} caracteres.")
         return
     try:
-        with st.spinner("Consultando a coleção…"):
-            result = _get_service(settings, factory).ask(question)
+        with st.spinner("Consultando os documentos…"):
+            result = st.session_state["_ragdocs_service"].ask(question)
     except Exception as error:
         st.error(_safe_error(error))
         return
