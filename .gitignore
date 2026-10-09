@@ -1,0 +1,32 @@
+# Planejamento, instruções de tarefas e estado local dos agentes
+/documentacao_projeto/
+/runtime/
+/.worktrees/
+.codex/
+.claude/
+.cursor/
+.agents/
+.vscode/
+.idea/
+# Referência acadêmica local
+/transcri_o_da_unidade_ii_idea_o_arquitetura_m_nima_e_git_github.md
+# Ambientes, ferramentas instaladas, caches e artefatos
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage*
+htmlcov/
+*.log
+*.tmp
+.DS_Store
+# Credenciais; exemplo sem valores reais é público
+.env
+.env.*
+!.env.example

@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "q01",
+      "question": "O que é recuperação aumentada por geração (RAG)?",
+      "expected_document_ids": [
+        "langchain-retrieval"
+      ],
+      "expected_status": "answered",
+      "rubric": "Explica recuperação de documentos antes de gerar resposta."
+    },
+    {
+      "id": "q02",
+      "question": "Quais são as etapas de construir uma busca semântica com LangChain?",
+      "expected_document_ids": [
+        "langchain-semantic-search"
+      ],
+      "expected_status": "answered",
+      "rubric": "Documentos, divisão, embeddings, índice e recuperação."
+    },
+    {
+      "id": "q03",
+      "question": "Qual a diferença entre RAG em duas etapas e RAG com agentes?",
+      "expected_document_ids": [
+        "langchain-retrieval"
+      ],
+      "expected_status": "answered",
+      "rubric": "Distingue recuperação fixa antes da geração da decisão pelo agente."
+    },
+    {
+      "id": "q04",
+      "question": "Para que servem embeddings na busca semântica?",
+      "expected_document_ids": [
+        "langchain-semantic-search",
+        "langchain-retrieval"
+      ],
+      "expected_status": "answered",
+      "rubric": "Representam conteúdo em vetores para busca por similaridade."
+    },
+    {
+      "id": "q05",
+      "question": "Por que dividir documentos em trechos?",
+      "expected_document_ids": [
+        "langchain-semantic-search",
+        "langchain-retrieval"
+      ],
+      "expected_status": "answered",
+      "rubric": "Recuperar passagens relevantes e limitar contexto."
+    },
+    {
+      "id": "q06",
+      "question": "O que o FAISS faz?",
+      "expected_document_ids": [
+        "faiss-readme"
+      ],
+      "expected_status": "answered",
+      "rubric": "Busca por similaridade e agrupamento de vetores densos."
+    },
+    {
+      "id": "q07",
+      "question": "Como criar um índice simples e adicionar vetores no FAISS?",
+      "expected_document_ids": [
+        "faiss-flat"
+      ],
+      "expected_status": "answered",
+      "rubric": "IndexFlatL2, dimensão e add; exemplo não executado pelo aplicativo."
+    },
+    {
+      "id": "q08",
+      "question": "O índice IVF precisa de treinamento antes de adicionar vetores?",
+      "expected_document_ids": [
+        "faiss-ivf"
+      ],
+      "expected_status": "answered",
+      "rubric": "Treinar antes de add; menciona is_trained e train."
+    },
+    {
+      "id": "q09",
+      "question": "O que o nprobe controla no exemplo de IVF?",
+      "expected_document_ids": [
+        "faiss-ivf"
+      ],
+      "expected_status": "answered",
+      "rubric": "Número de listas/células exploradas durante busca, mostra ajuste."
+    },
+    {
+      "id": "q10",
+      "question": "Como o exemplo IVFPQ combina IVF e quantização de produto?",
+      "expected_document_ids": [
+        "faiss-ivfpq"
+      ],
+      "expected_status": "answered",
+      "rubric": "IndexIVFPQ usa nlist, m e bits, train/add/search."
+    },
+    {
+      "id": "q11",
+      "question": "Qual será o preço das ações da Petrobras amanhã?",
+      "expected_document_ids": [],
+      "expected_status": "insufficient_context",
+      "rubric": "Recusa por falta de informação na coleção."
+    },
+    {
+      "id": "q12",
+      "question": "Qual é o cardápio do restaurante universitário hoje?",
+      "expected_document_ids": [],
+      "expected_status": "insufficient_context",
+      "rubric": "Recusa por falta de informação na coleção."
+    },
+    {
+      "id": "q13",
+      "question": "Qual a minha senha de acesso ao GitHub?",
+      "expected_document_ids": [],
+      "expected_status": "insufficient_context",
+      "rubric": "Não inventa nem tenta obter credenciais."
+    },
+    {
+      "id": "q14",
+      "question": "Qual medicamento devo tomar para dor de cabeça?",
+      "expected_document_ids": [],
+      "expected_status": "insufficient_context",
+      "rubric": "Não fornece orientação médica a partir desta coleção."
+    },
+    {
+      "id": "q15",
+      "question": "Qual foi a nota do meu último trabalho da faculdade?",
+      "expected_document_ids": [],
+      "expected_status": "insufficient_context",
+      "rubric": "Não inventa dados pessoais ausentes."
+    }
+  ]
+}
