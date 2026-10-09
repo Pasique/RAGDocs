@@ -1,4 +1,4 @@
-"""Operação explícita do índice e avaliação real retomável."""
+"""Avaliação retomável usando somente PDFs sintéticos versionados."""
 
 import argparse
 import hashlib
@@ -12,14 +12,14 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from ragdocs.config import Settings, load_settings
-from ragdocs.contracts import AnswerResult, AnswerService, RetrievedChunk, Retriever
+from ragdocs.contracts import AnswerResult, AnswerService, RetrievedChunk, Retriever, UploadedPDF
 from ragdocs.errors import ConfigurationError, CreditError, RagDocsError
 
 
 class EvaluationCase(BaseModel):
     id: str
     question: str
-    expected_document_ids: list[str]
+    expected_files: list[str]
     expected_status: Literal["answered", "insufficient_context"]
     rubric: str
 
@@ -77,7 +77,7 @@ def load_cases(path: Path, settings: Settings) -> list[EvaluationCase]:
         for case in cases:
             if not case.question.strip() or len(case.question) > settings.max_question_chars:
                 raise ValueError("question")
-            if bool(case.expected_document_ids) != (case.expected_status == "answered"):
+            if bool(case.expected_files) != (case.expected_status == "answered"):
                 raise ValueError("expectation")
         return cases
     except (OSError, ValueError, KeyError, TypeError, ValidationError) as exc:
@@ -97,11 +97,18 @@ def evaluation_fingerprint(settings: Settings, cases: list[EvaluationCase]) -> s
         "cases": [case.model_dump() for case in cases],
     }
     digest.update(json.dumps(config, sort_keys=True, ensure_ascii=False).encode())
-    for path in sorted(settings.corpus_dir.rglob("*")):
-        if path.is_file():
-            digest.update(str(path.relative_to(settings.corpus_dir)).encode())
-            digest.update(path.read_bytes())
-    for name in ["product_prompt.py", "service.py", "providers.py", "contracts.py", "cli.py"]:
+    for upload in evaluation_uploads(settings):
+        digest.update(upload.name.encode())
+        digest.update(upload.data)
+    for name in [
+        "product_prompt.py",
+        "service.py",
+        "providers.py",
+        "contracts.py",
+        "cli.py",
+        "ingestion.py",
+        "index.py",
+    ]:
         digest.update(Path(__file__).with_name(name).read_bytes())
     return digest.hexdigest()
 
@@ -137,9 +144,7 @@ def evaluation_report(checkpoint: dict, cases: list[EvaluationCase]) -> dict:
     unsupported = [case for case in cases if case.expected_status == "insufficient_context"]
     completed = [result for result in results.values() if result.get("status") != "technical_error"]
     retrieval_hits = sum(
-        bool(
-            set(case.expected_document_ids) & set(results.get(case.id, {}).get("retrieved_ids", []))
-        )
+        bool(set(case.expected_files) & set(results.get(case.id, {}).get("retrieved_files", [])))
         for case in supported
     )
     refusals = sum(
@@ -194,8 +199,8 @@ def run_evaluation(
             retrieved = recording.last_results
             valid_ids = {item.chunk.chunk_id for item in retrieved}
             result.update(answer.model_dump())
-            result["retrieved_ids"] = list(
-                dict.fromkeys(item.chunk.document_id for item in retrieved)
+            result["retrieved_files"] = list(
+                dict.fromkeys(item.chunk.file_name for item in retrieved)
             )
             result["retrieved_chunks"] = [item.model_dump() for item in retrieved]
             result["citations_valid"] = all(
@@ -215,7 +220,7 @@ def run_evaluation(
 
 
 def apply_reviews(checkpoint: dict, review_path: Path, cases: list[EvaluationCase]) -> None:
-    """Importa revisão humana explícita; não contrata um modelo avaliador."""
+    """Importa revisão explícita das rubricas, sem chamadas a outro modelo."""
     try:
         reviews = json.loads(review_path.read_text(encoding="utf-8"))
         if reviews["fingerprint"] != checkpoint["fingerprint"]:
@@ -238,21 +243,17 @@ def apply_reviews(checkpoint: dict, review_path: Path, cases: list[EvaluationCas
         ) from exc
 
 
-def _build(settings: Settings) -> None:
-    from ragdocs.index import build_index, load_index
-
-    try:
-        load_index(settings)
-    except RagDocsError:
-        verify_live_key(settings)
-        build_index(settings)
-        print("Índice construído em runtime/index.")
-    else:
-        print("Índice compatível reaproveitado; nenhum documento foi reindexado.")
+def evaluation_uploads(settings: Settings) -> list[UploadedPDF]:
+    """Somente fixtures públicas; não aceita nem salva documentos do usuário."""
+    directory = settings.project_root / "tests" / "fixtures" / "pdfs"
+    return [
+        UploadedPDF(name=path.name, data=path.read_bytes())
+        for path in sorted(directory.glob("*.pdf"))
+    ]
 
 
 def _evaluate(settings: Settings, args: argparse.Namespace) -> None:
-    from ragdocs.index import load_index
+    from ragdocs.index import process_pdfs
     from ragdocs.service import RagAnswerService
 
     cases = load_cases(settings.project_root / "tests" / "fixtures" / "evaluation.json", settings)
@@ -279,7 +280,7 @@ def _evaluate(settings: Settings, args: argparse.Namespace) -> None:
                 settings,
                 cases,
                 path,
-                load_index(settings),
+                process_pdfs(settings, evaluation_uploads(settings)).retriever,
                 lambda retriever: RagAnswerService(settings, retriever),
                 args.retry_failed,
             )
@@ -292,22 +293,18 @@ def _evaluate(settings: Settings, args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Operação local do RAGDocs")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("build-index", help="Construir ou reaproveitar índice compatível")
-    evaluate = commands.add_parser("evaluate", help="Avaliar e revisar a coleção fixa")
+    evaluate = commands.add_parser("evaluate", help="Avaliar e revisar PDFs sintéticos de teste")
     mode = evaluate.add_mutually_exclusive_group()
     mode.add_argument("--live", action="store_true", help="Autorizar chamadas reais pagas")
     mode.add_argument("--report", action="store_true", help="Exibir métricas sem chamadas")
-    mode.add_argument("--review-file", help="Importar JSON de revisão humana sem chamadas")
+    mode.add_argument("--review-file", help="Importar JSON de revisão sem chamadas")
     evaluate.add_argument("--retry-failed", action="store_true", help="Repetir falhas técnicas")
     args = parser.parse_args(argv)
     try:
         settings = load_settings()
-        if args.command == "build-index":
-            _build(settings)
-        else:
-            if args.retry_failed and not args.live:
-                raise ConfigurationError("--retry-failed exige --live.")
-            _evaluate(settings, args)
+        if args.retry_failed and not args.live:
+            raise ConfigurationError("--retry-failed exige --live.")
+        _evaluate(settings, args)
         return 0
     except RagDocsError as exc:
         print(f"Erro: {exc}", file=sys.stderr)

@@ -65,7 +65,7 @@ def test_evaluation_resume_and_manual_review(tmp_path):
         EvaluationCase(
             id="one",
             question="O que é RAG?",
-            expected_document_ids=["doc"],
+            expected_files=["guia.pdf"],
             expected_status="answered",
             rubric="Recupera antes de gerar.",
         )
@@ -74,9 +74,8 @@ def test_evaluation_resume_and_manual_review(tmp_path):
         chunk_id="chunk",
         text="Busca antes de gerar",
         document_id="doc",
-        title="Guia",
-        url="https://example.org/guide",
-        revision="abc",
+        file_name="guia.pdf",
+        page=1,
     )
 
     class Search:
@@ -118,8 +117,9 @@ def test_evaluation_resume_and_manual_review(tmp_path):
     apply_reviews(checkpoint, review_file, cases)
     assert evaluation_report(checkpoint, cases)["accepted"]
     old = evaluation_fingerprint(settings, cases)
-    settings.corpus_dir.mkdir()
-    (settings.corpus_dir / "new.md").write_text("Novo conteúdo")
+    fixture_dir = tmp_path / "tests" / "fixtures" / "pdfs"
+    fixture_dir.mkdir(parents=True)
+    (fixture_dir / "new.pdf").write_bytes(b"different bytes")
     assert evaluation_fingerprint(settings, cases) != old
 
 
@@ -129,7 +129,7 @@ def test_technical_failure_is_checkpointed_not_a_refusal(tmp_path):
         EvaluationCase(
             id="one",
             question="RAG?",
-            expected_document_ids=[],
+            expected_files=[],
             expected_status="insufficient_context",
             rubric="Sem suporte.",
         )

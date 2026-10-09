@@ -3,130 +3,128 @@
   "cases": [
     {
       "id": "q01",
-      "question": "O que é recuperação aumentada por geração (RAG)?",
-      "expected_document_ids": [
-        "langchain-retrieval"
+      "question": "Qual é a data e o horário da Feira Comunitária Aurora?",
+      "expected_files": [
+        "feira_comunitaria.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Explica recuperação de documentos antes de gerar resposta."
+      "rubric": "18 de novembro de 2026, das 9h às 16h."
     },
     {
       "id": "q02",
-      "question": "Quais são as etapas de construir uma busca semântica com LangChain?",
-      "expected_document_ids": [
-        "langchain-semantic-search"
+      "question": "Onde acontece a Feira Comunitária Aurora e quanto custa a entrada?",
+      "expected_files": [
+        "feira_comunitaria.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Documentos, divisão, embeddings, índice e recuperação."
+      "rubric": "Centro Comunitário Aurora, Rua das Flores, 120; entrada gratuita."
     },
     {
       "id": "q03",
-      "question": "Qual a diferença entre RAG em duas etapas e RAG com agentes?",
-      "expected_document_ids": [
-        "langchain-retrieval"
+      "question": "Até quando é possível se inscrever como expositor da feira?",
+      "expected_files": [
+        "feira_comunitaria.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Distingue recuperação fixa antes da geração da decisão pelo agente."
+      "rubric": "30 de outubro de 2026."
     },
     {
       "id": "q04",
-      "question": "Para que servem embeddings na busca semântica?",
-      "expected_document_ids": [
-        "langchain-semantic-search",
-        "langchain-retrieval"
+      "question": "O que cada expositor recebe e qual é o máximo de expositores por barraca?",
+      "expected_files": [
+        "feira_comunitaria.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Representam conteúdo em vetores para busca por similaridade."
+      "rubric": "Mesa de 2 metros, duas cadeiras; máximo de três expositores."
     },
     {
       "id": "q05",
-      "question": "Por que dividir documentos em trechos?",
-      "expected_document_ids": [
-        "langchain-semantic-search",
-        "langchain-retrieval"
+      "question": "Em que horário ocorre a montagem das barracas da feira?",
+      "expected_files": [
+        "feira_comunitaria.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Recuperar passagens relevantes e limitar contexto."
+      "rubric": "Das 7h30 às 8h30."
     },
     {
       "id": "q06",
-      "question": "O que o FAISS faz?",
-      "expected_document_ids": [
-        "faiss-readme"
+      "question": "Quando deve ser feita a rega da Horta Escolar Girassol?",
+      "expected_files": [
+        "manual_horta.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Busca por similaridade e agrupamento de vetores densos."
+      "rubric": "Às 7h, três vezes por semana; não regar em dias de chuva."
     },
     {
       "id": "q07",
-      "question": "Como criar um índice simples e adicionar vetores no FAISS?",
-      "expected_document_ids": [
-        "faiss-flat"
+      "question": "Quantos litros de água cada canteiro recebe por rega?",
+      "expected_files": [
+        "manual_horta.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "IndexFlatL2, dimensão e add; exemplo não executado pelo aplicativo."
+      "rubric": "4 litros."
     },
     {
       "id": "q08",
-      "question": "O índice IVF precisa de treinamento antes de adicionar vetores?",
-      "expected_document_ids": [
-        "faiss-ivf"
+      "question": "Qual profundidade e distância devem ser usadas para plantar alface?",
+      "expected_files": [
+        "manual_horta.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Treinar antes de add; menciona is_trained e train."
+      "rubric": "Profundidade de 1 cm; distância de 25 cm entre mudas."
     },
     {
       "id": "q09",
-      "question": "O que o nprobe controla no exemplo de IVF?",
-      "expected_document_ids": [
-        "faiss-ivf"
+      "question": "Depois de quantos dias deve ocorrer a colheita da alface?",
+      "expected_files": [
+        "manual_horta.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "Número de listas/células exploradas durante busca, mostra ajuste."
+      "rubric": "45 dias depois do plantio."
     },
     {
       "id": "q10",
-      "question": "Como o exemplo IVFPQ combina IVF e quantização de produto?",
-      "expected_document_ids": [
-        "faiss-ivfpq"
+      "question": "O que pode ir na composteira e quais materiais devem ficar de fora?",
+      "expected_files": [
+        "manual_horta.pdf"
       ],
       "expected_status": "answered",
-      "rubric": "IndexIVFPQ usa nlist, m e bits, train/add/search."
+      "rubric": "Folhas secas e restos de vegetais; não adicionar carne nem óleo."
     },
     {
       "id": "q11",
-      "question": "Qual será o preço das ações da Petrobras amanhã?",
-      "expected_document_ids": [],
+      "question": "Qual é o valor do aluguel de uma barraca da feira?",
+      "expected_files": [],
       "expected_status": "insufficient_context",
-      "rubric": "Recusa por falta de informação na coleção."
+      "rubric": "Informação ausente nos PDFs; recusar sem inventar."
     },
     {
       "id": "q12",
-      "question": "Qual é o cardápio do restaurante universitário hoje?",
-      "expected_document_ids": [],
+      "question": "Qual é a marca do adubo utilizado na horta?",
+      "expected_files": [],
       "expected_status": "insufficient_context",
-      "rubric": "Recusa por falta de informação na coleção."
+      "rubric": "Informação ausente nos PDFs; recusar sem inventar."
     },
     {
       "id": "q13",
-      "question": "Qual a minha senha de acesso ao GitHub?",
-      "expected_document_ids": [],
+      "question": "Quem é o diretor da escola responsável pela horta?",
+      "expected_files": [],
       "expected_status": "insufficient_context",
-      "rubric": "Não inventa nem tenta obter credenciais."
+      "rubric": "Informação ausente nos PDFs; recusar sem inventar."
     },
     {
       "id": "q14",
-      "question": "Qual medicamento devo tomar para dor de cabeça?",
-      "expected_document_ids": [],
+      "question": "Quantas pessoas visitaram a feira em 2025?",
+      "expected_files": [],
       "expected_status": "insufficient_context",
-      "rubric": "Não fornece orientação médica a partir desta coleção."
+      "rubric": "Informação ausente nos PDFs; recusar sem inventar."
     },
     {
       "id": "q15",
-      "question": "Qual foi a nota do meu último trabalho da faculdade?",
-      "expected_document_ids": [],
+      "question": "Qual é o cronograma de plantio de tomates nessa horta?",
+      "expected_files": [],
       "expected_status": "insufficient_context",
-      "rubric": "Não inventa dados pessoais ausentes."
+      "rubric": "Informação ausente nos PDFs; recusar sem inventar."
     }
   ]
 }

@@ -1,122 +1,124 @@
 # 📚 RAGDocs
 
-Assistente local para consultar documentação de **LangChain e FAISS**, com perguntas
-e respostas em português. Cada resposta documental apresenta os trechos usados e
-links para as fontes oficiais. Quando a coleção não sustenta a resposta, o
-assistente informa que o contexto é insuficiente.
+Assistente local para consultar **PDFs escolhidos pelo usuário**, desenvolvido com
+**LangChain e FAISS em CPU**, Streamlit e OpenRouter. Envie vários documentos,
+processe a coleção e faça perguntas em português. As respostas mostram **nome do
+arquivo, página e trecho**; quando falta informação, o assistente informa essa limitação.
 
-MVP acadêmico em Python 3.11, com **LangChain + FAISS em CPU**, interface Streamlit e
-OpenRouter. As perguntas são independentes: o histórico é apenas visual.
+As perguntas são independentes. O histórico serve apenas para visualização e mantém
+as últimas 20 interações. Não é necessário preparar uma base documental previamente.
 
 ## Instalação
 
-Use Python **3.11** e execute os comandos na pasta que contém este README. A
-instalação foi verificada em macOS com Apple Silicon. Em outros sistemas, é
-necessário que as dependências nativas de FAISS tenham distribuição compatível.
+Use Python **3.11** e execute na raiz deste repositório:
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
-```
-
-No Windows, a ativação correspondente é `.venv\Scripts\activate`. O arquivo
-`requirements.lock` fixa também as dependências de desenvolvimento. Para atualizar
-o ambiente de forma deliberada, use `pip-compile pyproject.toml --extra dev
---output-file requirements.lock --strip-extras` e execute novamente os testes.
-
-## Configuração e orçamento
-
-```bash
 cp .env.example .env
 ```
 
-Edite o `.env` local e preencha `OPENROUTER_API_KEY`. Use uma **chave dedicada com
-limite total de US$ 1, sem renovação automática**, configurado no OpenRouter. A CLI
-confere esse limite antes de construir um novo índice ou executar a avaliação paga.
-O teto se refere ao consumo desta chave, não ao saldo geral ou à compra de créditos.
-Não envie a chave em mensagens nem a adicione ao Git.
+No Windows, ative com `.venv\Scripts\activate`. A instalação foi verificada em macOS
+com Apple Silicon; FAISS precisa de distribuição nativa compatível no seu sistema.
+`requirements.lock` fixa as dependências de aplicação e desenvolvimento. Atualizações
+deliberadas usam `pip-compile pyproject.toml --extra dev --output-file requirements.lock
+--strip-extras`, seguidas dos testes.
 
-Os padrões são:
+Preencha `OPENROUTER_API_KEY` no `.env` local. Use uma chave dedicada com limite total
+de **US$ 1, sem renovação automática**, no OpenRouter. Esse limite considera todo o
+consumo da chave, inclusive testes anteriores. A avaliação confere o teto antes das
+chamadas; o limite configurado no provedor também controla o uso da interface.
+Não adicione credenciais ao Git.
 
-| Configuração | Valor |
+| Configuração | Padrão |
 |---|---|
 | `RAGDOCS_CHAT_MODEL` | `openai/gpt-4.1-mini` |
 | `RAGDOCS_EMBEDDING_MODEL` | `openai/text-embedding-3-small` |
 | Dimensão dos embeddings | 1536 |
 | Trechos recuperados | 4 |
 | Tamanho / sobreposição | 1200 / 200 caracteres |
-| Pergunta / resposta | até 1000 caracteres / 700 tokens |
-| Timeout / repetição transitória | 30 segundos por chamada / até uma repetição |
+| Pergunta / resposta | 1000 caracteres / 700 tokens |
+| Timeout / repetição transitória | 30 segundos / até uma repetição |
 
-Os dois modelos são acessados pelo OpenRouter; não é necessária uma chave direta da
-OpenAI. Alterar o modelo de embeddings exige reconstruir o índice. Modelos
-alternativos precisam aceitar a dimensão configurada; o modelo de chat precisa
-suportar saída estruturada. Alterar somente o modelo de chat não reindexa documentos.
+Os modelos são configuráveis por ambiente, ambos acessados pelo OpenRouter.
+O modelo de embeddings deve aceitar a dimensão configurada e o de chat deve
+suportar saída estruturada. Não é necessária uma chave direta da OpenAI.
 
-## Executar
+## Usar a aplicação
 
 ```bash
-python -m ragdocs.cli build-index
 streamlit run app.py
 ```
 
-Abra o endereço local exibido pelo Streamlit, normalmente `http://localhost:8501`.
-O índice compatível é reaproveitado em execuções posteriores. A interface não gera
-embeddings documentais nem reconstrói índices automaticamente.
+Abra `http://localhost:8501`:
 
-Experimente:
+1. Selecione um ou mais PDFs.
+2. Clique em **Processar documentos** e aguarde a criação do índice.
+3. Faça uma pergunta sobre o conteúdo e confira as fontes abaixo da resposta.
 
-- “O que é recuperação aumentada por geração (RAG)?”
-- “O índice IVF precisa de treinamento antes de adicionar vetores?”
-- “Como criar um índice simples e adicionar vetores no FAISS?”
-- “Qual é o cardápio do restaurante universitário hoje?” — informação ausente.
+Exemplo: envie um regulamento de evento e um manual de horta; pergunte o horário do
+evento ou como regar os canteiros. LangChain e FAISS são tecnologias da aplicação;
+os documentos podem tratar de qualquer assunto.
 
-Expanda as fontes abaixo da resposta para conferir texto, documento, revisão e link.
-O botão **Limpar histórico** remove as interações visuais da sessão. O histórico
-mantém no máximo 20 perguntas e nunca é enviado como memória ao modelo.
+Selecionar outra coleção invalida imediatamente índice, serviço e histórico.
+É necessário processá-la antes de consultar. **Limpar documentos** remove também a
+seleção; **Limpar histórico** preserva a coleção processada. Atualizações de tela e
+perguntas reutilizam o índice da sessão sem repetir embeddings dos documentos.
+
+## PDFs, limites e privacidade
+
+- Até cinco PDFs, 10 MiB por arquivo e 20 MiB no conjunto.
+- Até 100 páginas e 200 mil caracteres extraídos no conjunto.
+- PDFs precisam ter texto extraível; não há OCR para páginas digitalizadas.
+- Arquivos inválidos, protegidos por senha ou inteiramente sem texto são rejeitados.
+- Páginas sem texto são ignoradas, com a quantidade informada na interface.
+- PDFs de conteúdo idêntico são deduplicados; arquivos diferentes com o mesmo nome
+  mantêm identidades distintas.
+
+Toda a coleção é validada antes de enviar embeddings. Exceder um limite interrompe
+o lote inteiro; não há truncamento silencioso nem retorno à coleção anterior.
+
+**PDFs, texto extraído, índice e histórico ficam em memória, na sessão**, sem gravação
+pela aplicação em disco ou cache compartilhado entre sessões. Fechar/reiniciar a
+sessão exige novo processamento. A biblioteca de extração também limita o tamanho
+de streams de página a 10 MiB; estes limites não garantem um teto absoluto de RAM.
+
+Os trechos são enviados ao **OpenRouter** para embeddings e respostas; a pergunta
+também é enviada. Portanto, o provedor recebe esse conteúdo e suas políticas de
+tratamento de dados se aplicam. Os documentos não são publicados no Git nem usados
+como comandos. A aplicação não navega na web ou executa código dos PDFs.
 
 ## Arquitetura mínima
 
 ```mermaid
 flowchart LR
-    D[Corpus fixo] --> I[Documentos e divisão em trechos]
-    I --> E[Embeddings OpenRouter]
-    E --> F[FAISS local]
-    U[Pergunta Streamlit] --> Q[Embedding da pergunta]
-    Q --> F
-    F --> R[Quatro trechos]
+    U[Upload de PDFs] --> V[Validação e deduplicação]
+    V --> P[pypdf: texto por página]
+    P --> C[LangChain: divisão em trechos]
+    C --> E[Embeddings OpenRouter]
+    E --> F[FAISS na sessão]
+    Q[Pergunta independente] --> B[Embedding da pergunta]
+    B --> F
+    F --> R[Quatro trechos recuperados]
     R --> L[LangChain e chat OpenRouter]
-    L --> V[Validação de referências]
-    V --> A[Resposta e fontes]
+    L --> A[Resposta validada e fontes por página]
 ```
 
-`src/ragdocs/` separa configuração, contratos, ingestão, índice, provedor, respostas,
-interface e CLI. O índice usa vetores normalizados e produto interno para busca por
-similaridade de cosseno. A integração FAISS do LangChain recupera os documentos.
-O chat usa `ChatOpenRouter`; o adaptador de embeddings implementa a interface
-`Embeddings` do LangChain e consulta o endpoint `/embeddings` do OpenRouter.
+`src/ragdocs/` separa configuração, contratos, processamento, índice, provedor,
+serviço de respostas, interface e CLI de avaliação. A extração e a divisão ocorrem
+por página, preservando a numeração original. A busca usa vetores normalizados e
+produto interno, equivalente à similaridade de cosseno, pela integração FAISS do
+LangChain. O chat usa `ChatOpenRouter`; o adaptador de embeddings implementa a
+interface `Embeddings` do LangChain e acessa `/embeddings` do OpenRouter.
 
-O modelo devolve uma resposta estruturada com identificadores de trechos. O serviço
-aceita somente identificadores recuperados e obtém fontes diretamente do corpus.
-Essa validação garante a origem das referências; a correção semântica é verificada
-separadamente. Falhas técnicas nunca são apresentadas como contexto insuficiente.
-
-O índice é gravado em formato nativo FAISS e os metadados em JSON, **sem pickle**.
-Modelo de embeddings, dimensão, parâmetros de divisão e identidade da coleção
-precisam coincidir na recarga. Hashes e metadados também são verificados.
-
-## Coleção documental
-
-São seis fontes congeladas, com revisões e hashes registrados em
-[`corpus/manifest.json`](corpus/manifest.json): recuperação e busca semântica do
-LangChain; README e tutoriais Flat, IVFFlat e IVFPQ do FAISS. A preparação removeu
-elementos de apresentação de MDX e preservou prosa e exemplos Python.
-
-As fontes originais estão em inglês; a aplicação responde em português. Exemplos
-de código são documentos e nunca são executados. As consultas não navegam na web.
-Veja [`corpus/README.md`](corpus/README.md) para revisões, preparação e atribuições.
+Uma assinatura do conteúdo, nomes e configuração identifica a coleção. A interface
+mantém o serviço em `st.session_state`, sem índice persistente ou recarga por disco.
+O modelo devolve identificadores de trechos: referências desconhecidas e respostas
+malformadas são rejeitadas sem nova chamada automática. As fontes vêm dos metadados,
+não de links gerados pelo modelo. Falhas técnicas têm mensagens próprias e nunca
+são apresentadas como falta de informação documental.
 
 ## Testes e avaliação
 
@@ -126,31 +128,29 @@ ruff check .
 python -m pip check
 ```
 
-A suíte padrão bloqueia conexões de rede. Usa FAISS real com embeddings
-determinísticos, HTTP simulado, respostas simuladas e testes de interação Streamlit.
-Cobre persistência, compatibilidade, ranking, referências, limites, erros e histórico.
+Os testes bloqueiam a rede. Exercitam extração de PDFs sintéticos, limites,
+deduplicação, FAISS real com embeddings determinísticos, HTTP simulado, validação
+de respostas e interações Streamlit, incluindo troca de coleção e isolamento de
+sessões. As fixtures em `tests/fixtures/pdfs/` são documentos fictícios públicos,
+sem relação com LangChain ou FAISS.
 
-A avaliação real é explícita e faz chamadas pagas:
+A avaliação paga é explícita e usa **somente essas fixtures**, nunca uploads:
 
 ```bash
 python -m ragdocs.cli evaluate --live
 python -m ragdocs.cli evaluate --report
 ```
 
-As 15 perguntas ficam em `tests/fixtures/evaluation.json`: dez respondíveis pela
-coleção e cinco sem suporte. Os resultados são salvos a cada pergunta em
-`runtime/evaluation/`. Uma nova execução reaproveita resultados concluídos com a
-mesma identidade de corpus, modelos, configuração, prompt e implementação.
+`tests/fixtures/evaluation.json` contém dez perguntas respondíveis e cinco sem
+suporte. Resultados e trechos dessas fixtures ficam em `runtime/evaluation/`,
+ignorado pelo Git. O comando retoma resultados concluídos com a mesma identidade
+de documentos, modelos, configurações e implementação. Não salva índices nem PDFs.
+Falhas técnicas interrompem a rodada e ficam registradas separadamente. Repeti-las
+exige `python -m ragdocs.cli evaluate --live --retry-failed`.
 
-Falhas técnicas interrompem a rodada e são registradas separadamente. Sua repetição
-exige uma decisão explícita: `python -m ragdocs.cli evaluate --live --retry-failed`.
-Alterações relevantes criam uma avaliação distinta; chamadas não são repetidas por
-um comando de relatório.
-
-Para registrar uma revisão semântica, crie um JSON local com o `fingerprint` do relatório
-e um objeto `reviews`. Para cada pergunta respondível, registre `correct` e
-`grounded` como booleanos, e `notes` com a justificativa baseada na rubrica e nos
-trechos. Exemplo de estrutura:
+Para revisar a sustentação, crie um JSON local com `fingerprint` e `reviews`, contendo
+para cada questão respondível os booleanos `correct` e `grounded`, e uma justificativa
+`notes` conferida contra a rubrica e as fontes:
 
 ```json
 {
@@ -159,55 +159,38 @@ trechos. Exemplo de estrutura:
     "q01": {
       "correct": true,
       "grounded": true,
-      "notes": "A resposta explica recuperação antes da geração e o trecho citado sustenta isso."
+      "notes": "Data e horário coincidem com a página citada."
     }
   }
 }
 ```
 
-Importe a revisão com `python -m ragdocs.cli evaluate --review-file
-runtime/evaluation/reviews.json`. Não há modelo avaliador pago.
+Importe sem chamadas pagas:
 
-Aceite: fonte esperada nos quatro trechos em pelo menos 8/10 casos; pelo menos 8/10
-respostas corretas e sustentadas; recusa em 5/5 casos sem suporte; referências válidas
-em todas as respostas. A CLI só marca `accepted` após a revisão registrada.
+```bash
+python -m ragdocs.cli evaluate --review-file runtime/evaluation/reviews.json
+```
 
-### Resultado da validação desta entrega
+Aceite: recuperação e respostas corretas e sustentadas em pelo menos 8/10 casos,
+recusas em 5/5 e referências válidas em todos. O relatório só marca `accepted` depois
+da revisão registrada. Não se contrata outro modelo como avaliador.
 
-A rodada real processou as 15 perguntas: **10/10 fontes esperadas recuperadas**, **8/10
-respostas corretas e sustentadas**, **5/5 recusas de conteúdo ausente** e referências
-válidas em todas as respostas. Os trechos foram revisados pelo coordenador com
-assistência do Codex, sem contratar um modelo avaliador; não se trata de avaliação
-humana independente. O consumo total observado da chave foi **US$ 0,0120927**.
+## Limitações
 
-Duas respostas não foram contabilizadas: a enumeração das etapas de busca semântica
-colocou embeddings antes da divisão, e a explicação de `nprobe` excedeu o significado
-explicitamente documentado no exemplo citado. Esses resultados atendem ao limiar
-do MVP e demonstram por que referências válidas não garantem uma resposta correta.
-
-## Limitações e próximos passos
-
-- A cobertura é limitada a seis fontes congeladas, e não a toda a documentação.
-- Um trecho parecido pode não responder à pergunta; o modelo ainda pode errar.
-- A disponibilidade, latência e cobrança dependem dos modelos no OpenRouter.
-- A aplicação é local e não oferece login, upload ou atendimento a vários usuários.
-- O pacote `langchain-community` usado na integração emite aviso de depreciação;
-  as versões verificadas estão fixadas. Uma migração poderá ser avaliada depois.
-
-Possíveis extensões: ampliar e revisar a coleção, melhorar a recuperação e oferecer
-upload ou memória conversacional. Elas não fazem parte desta entrega.
+A extração não reconhece texto presente somente em imagens. Layouts complexos e
+tabelas podem perder estrutura. Um trecho semelhante pode não responder à pergunta,
+e referências válidas não garantem correção semântica. Latência, disponibilidade e
+cobrança dependem do OpenRouter. O MVP é local, sem autenticação ou hospedagem pública.
+As versões da integração `langchain-community` estão fixadas e emitem aviso de depreciação.
 
 ## Git, créditos e licença
 
-Código, testes, corpus, dependências e instruções operacionais permanentes são
-versionados. Credenciais, índices, avaliações, planejamento, prompts de
-desenvolvimento, handoffs e estado de ferramentas são ignorados. `AGENTS.md`
-documenta a operação; os prompts usados pelo produto fazem parte do código.
+Código, testes, PDFs sintéticos, dependências, prompts do produto e instruções
+operacionais em `AGENTS.md` são versionados. Credenciais, uploads, ambientes, índices,
+avaliações locais, planejamento, prompts de desenvolvimento, handoffs e estado de
+ferramentas ficam fora do Git. A documentação local está em `documentacao_projeto/`.
 
 Projeto de Pasique, desenvolvido com assistência do Codex em frentes paralelas de
-indexação, respostas e interface, com integração e revisão pelo coordenador.
-As respostas da aplicação usam GPT-4.1 mini; a busca usa text-embedding-3-small,
-ambos por OpenRouter. LangChain e FAISS fornecem a infraestrutura de recuperação.
-
-Código próprio sob [licença MIT](LICENSE). Documentação do LangChain e FAISS mantém
-as atribuições e licenças em [`corpus/licenses/`](corpus/licenses/).
+processamento, respostas e interface, com integração e revisão pelo coordenador.
+Código e fixtures próprios sob [licença MIT](LICENSE).
+A versão `v1.0.0` permanece no histórico; `v1.1.0` corrige o fluxo para PDFs enviados.
